@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Aristotle - Research Agent">
+    <title>Aristotle - Research Agent</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="logo">Research Agent</h1>
+            <p class="tagline">Automated Research Paper Generator</p>
+            <a href="index.html" style="color: var(--accent); text-decoration: none; margin-top: 1rem; display: inline-block;">← Back to Main</a>
+        </header>
+
+        <!-- Main Search Area -->
+        <main class="main-content">
+            <div class="search-container" style="max-width: 800px;">
+                <div class="search-box-wrapper">
+                    <input 
+                        type="text" 
+                        id="topicInput" 
+                        class="search-input" 
+                        placeholder="Enter research topic (e.g., 'quantum computing algorithms')..."
+                        autocomplete="off"
+                    />
+                    <button id="startResearchBtn" class="submit-btn" aria-label="Start Research">Generate Paper</button>
+                </div>
+                
+                <!-- Live Feedback Area -->
+                <div id="feedbackContainer" class="feedback-container" style="display: none;">
+                    <div class="feedback-header">
+                        <h3>Research Progress</h3>
+                        <div id="progressBar" class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                    </div>
+                    <div id="feedbackContent" class="feedback-content"></div>
+                </div>
+                
+                <!-- Results Container -->
+                <div id="resultsContainer" class="results-container" style="display: none;"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/research.js"></script>
+</body>
+</html>
+

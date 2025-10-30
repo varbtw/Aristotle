@@ -17,6 +17,9 @@ venv.bak/
 chroma_db/
 *.sqlite3
 
+# Research Agent outputs
+research_output/
+
 # IDE
 .vscode/
 .idea/
