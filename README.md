@@ -1,4 +1,4 @@
-# Research Model - AI Research Assistant
+# Aristotle - AI Research Assistant
 
 An AI-powered research assistant that finds, indexes, and summarizes scholarly papers using ChromaDB vector search and the Semantic Scholar API.
 
