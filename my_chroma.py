@@ -1,6 +1,8 @@
 """
 ChromaDB wrapper: persistent collection, indexing helpers, queries, and
 maintenance utilities (auditing, rehydrating abstracts).
+
+Handles all database operations for Aristotle's paper storage and retrieval.
 """
 
 import chromadb
@@ -10,7 +12,7 @@ from itertools import islice
 import numpy as np
 import json
 
-# Persistent client
+# Initialize persistent ChromaDB client and collection
 try:
     client = chromadb.PersistentClient(path="./chroma_db")
     collection = client.get_or_create_collection(name="scholarCollection_local")
@@ -20,6 +22,16 @@ except Exception as e:
     raise
 
 def _batched(iterable, n=100):
+    """
+    Batch an iterable into chunks of size n for efficient processing.
+    
+    Args:
+        iterable: The iterable to batch
+        n: Batch size (default: 100)
+        
+    Yields:
+        Batches of items from the iterable
+    """
     it = iter(iterable)
     while True:
         batch = list(islice(it, n))
@@ -29,6 +41,16 @@ def _batched(iterable, n=100):
 
 
 def _normalize_paper_to_doc_meta(p: dict, topic: str | None = None):
+    """
+    Normalize paper data into document and metadata format for ChromaDB.
+    
+    Args:
+        p: Paper dictionary from Semantic Scholar
+        topic: Optional topic string for tagging
+        
+    Returns:
+        Tuple of (document_string, metadata_dict)
+    """
     title = (p.get("title") or "").strip()
     url = (p.get("url") or "").strip()
     abstract = (p.get("abstract") or "").strip()
@@ -41,6 +63,7 @@ def _normalize_paper_to_doc_meta(p: dict, topic: str | None = None):
     ref_count = p.get("referenceCount")
     cit_count = p.get("citationCount")
 
+    # Extract author names from various formats
     authors_field = p.get("authors") or []
     author_names = []
     if isinstance(authors_field, list):
@@ -76,6 +99,14 @@ def _normalize_paper_to_doc_meta(p: dict, topic: str | None = None):
 
 
 def upsert_papers(papers: list[dict], topic: str | None = None, batch_size: int = 100):
+    """
+    Upsert papers into ChromaDB. Updates existing papers or adds new ones.
+    
+    Args:
+        papers: List of paper dictionaries
+        topic: Optional topic for tagging papers
+        batch_size: Number of papers to process per batch (default: 100)
+    """
     writer = collection.upsert if hasattr(collection, "upsert") else collection.add
     for batch in _batched(papers, batch_size):
         ids, documents, metadatas = [], [], []
@@ -160,6 +191,15 @@ def get_query_texts(query, n_results=5):
 
 
 def get_by_ids(ids: list[str]):
+    """
+    Retrieve papers from ChromaDB by their IDs.
+    
+    Args:
+        ids: List of paper IDs to retrieve
+        
+    Returns:
+        Dictionary containing paper data with metadatas and documents
+    """
     if not ids:
         return {"ids": [[]], "distances": [[]], "metadatas": [[]], "documents": [[]]}
     try:

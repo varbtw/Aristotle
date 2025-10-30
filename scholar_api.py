@@ -11,7 +11,7 @@ import os
 from dotenv import load_dotenv
 import time
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
 
 # Get API key from environment variable
@@ -22,8 +22,18 @@ if not api_key:
 
 result_limit = 10
 
-#takes in a topic and return n number of papers
+
 def find_basis_paper(topic, result_limit="10"):
+    """
+    Search for papers on a given topic using Semantic Scholar API.
+    
+    Args:
+        topic: Search topic/query string
+        result_limit: Maximum number of papers to return (default: "10")
+        
+    Returns:
+        List of paper dictionaries with metadata
+    """
     if not topic:
         raise ValueError("Please provide a topic to search for.")
 
@@ -56,24 +66,38 @@ def find_basis_paper(topic, result_limit="10"):
         return []
 
 
-_paper_cache: dict[str, dict] = {}
-_refs_cache: dict[str, list] = {}
+# In-memory caches to reduce API calls and handle rate limiting
+_paper_cache: dict[str, dict] = {}  # Cache for fetched papers
+_refs_cache: dict[str, list] = {}   # Cache for paper references
 
 
 def _request_with_backoff(url: str, headers: dict, params: dict, max_retries: int = 3):
+    """
+    Make HTTP request with exponential backoff retry logic.
+    Handles rate limiting (429) and server errors (5xx).
+    
+    Args:
+        url: Request URL
+        headers: HTTP headers
+        params: Query parameters
+        max_retries: Maximum number of retry attempts
+        
+    Returns:
+        Response object or None if all retries fail
+    """
     delay = 0.5
     for attempt in range(max_retries):
         try:
             rsp = requests.get(url, headers=headers, params=params, timeout=30)
             if rsp.status_code == 429:
-                # Too many requests – back off and retry
+                # Too many requests – back off and retry with exponential backoff
                 time.sleep(delay)
                 delay = min(delay * 2, 4.0)
                 continue
             rsp.raise_for_status()
             return rsp
         except requests.exceptions.HTTPError as e:
-            # Retry on 5xx as well
+            # Retry on 5xx server errors as well
             status = getattr(getattr(e, 'response', None), 'status_code', None)
             if status is not None and 500 <= status < 600 and attempt < max_retries - 1:
                 time.sleep(delay)
@@ -85,11 +109,18 @@ def _request_with_backoff(url: str, headers: dict, params: dict, max_retries: in
 
 def get_paper(paper_id: str):
     """
-    Fetch a single paper with references and basic metadata.
+    Fetch a single paper with references and basic metadata from Semantic Scholar.
+    Uses in-memory cache to avoid duplicate API calls.
+    
+    Args:
+        paper_id: Semantic Scholar paper ID
+        
+    Returns:
+        Paper data dictionary or None if fetch fails
     """
     if not api_key:
         raise ValueError("Semantic Scholar API key not configured. Please set SEMANTIC_SCHOLAR_API_KEY in your .env file.")
-    # In-memory cache for the current run
+    # Check in-memory cache first
     if paper_id in _paper_cache:
         return _paper_cache[paper_id]
     try:
@@ -113,8 +144,17 @@ def get_paper(paper_id: str):
 
 def get_references(paper_id: str, limit: int = 100):
     """
-    Return a list of reference dicts for a paper (paperId, title, url, year).
+    Get references for a paper from Semantic Scholar.
+    Uses cached data if available to reduce API calls.
+    
+    Args:
+        paper_id: Semantic Scholar paper ID
+        limit: Maximum number of references to return (default: 100)
+        
+    Returns:
+        List of reference dictionaries with paperId, title, url, and year
     """
+    # Check cache first
     if paper_id in _refs_cache:
         return _refs_cache[paper_id][: max(1, int(limit))]
     data = get_paper(paper_id)
@@ -134,13 +174,17 @@ def get_references(paper_id: str, limit: int = 100):
     return out
 
 
-#prints the papers from the find_basis_paper function
 def print_papers(papers):
+    """
+    Print papers from find_basis_paper function in a readable format.
+    
+    Args:
+        papers: List of paper dictionaries
+    """
     for idx, paper in enumerate(papers):
         print(f"{idx}  {paper['title']} {paper['url']}")
 
 
-#this here gets the dataset from semantic scholar
 def get_dataset(dataset_name: str = "abstracts",
                 api_key: str | None = None,
                 release_id: str = "latest",
@@ -188,7 +232,6 @@ def get_dataset(dataset_name: str = "abstracts",
     except requests.RequestException as e:
         print(f"❌ Request error: {e}")
 
-#previews the dataset file
 def preview_dataset_file(url: str, n: int = 100):
     """
     Stream and preview the first n records from a .jsonl.gz dataset file.

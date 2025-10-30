@@ -1,6 +1,14 @@
 """
+Aristotle - AI Research Assistant
+
 Terminal-first research assistant with search, summarization, fact-checking,
 abstract auditing and backfilling. Loads GEMINI_API_KEY from .env.
+
+Main Features:
+- Intent routing using Gemini AI
+- Automatic paper indexing from Semantic Scholar
+- Paper summarization and fact-checking
+- Command-line interface with various commands
 """
 
 import os
@@ -12,10 +20,10 @@ from dotenv import load_dotenv
 import my_chroma
 import scholar_api as sch
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
 
-# Get API key from environment variable
+# Initialize Gemini API client
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("GEMINI_API_KEY not found in environment variables. Please set it in a .env file.")
@@ -23,17 +31,18 @@ if not api_key:
 client = genai.Client(api_key=api_key)
 
 
+# System prompt for Gemini AI model
 SYSTEM_V1 = """
 Role: AI research assistant that finds, organizes, and summarizes scholarly papers.
 Style: concise, structured; numbered steps for workflows; bullets for lists.
 Constraints:
-- If the user asks for paper recommendations, literature related to a topic, or “find papers,” route to query_papers.
+- If the user asks for paper recommendations, literature related to a topic, or "find papers," route to query_papers.
 - If the user asks general conceptual questions (methods, math, background), answer directly with clear, sourced guidance.
 - Prefer actionable outputs: short summaries with key findings and why they matter.
-- If the user asks for a paper, you can write reasearch papers as well. Just write them a reaearch paper.
+- If the user asks for a paper, you can write research papers as well. Just write them a research paper.
 - Output plain text unless asked otherwise.
 - NEVER GIVE THE SEMANTIC SCHOLAR LINK YOU MUST GIVE THE PAPER URL.
-- If the question is more casual, no need to talk about each paper, just awnser the question using the papers as a source.
+- If the question is more casual, no need to talk about each paper, just answer the question using the papers as a source.
 - If the question is asking to find papers, then you can summarize each paper and provide an overall insight.
 """
 
@@ -65,11 +74,7 @@ Explain briefly without calling any function.
 """
 
 
-# class response(BaseModel):
-#     call:str
-    
-
-#this is the intent router which takes in the users raw question and figures out what functions to call and what to do with it
+# Intent router function - determines user intent and routes to appropriate handlers
 def intent_router(user_text: str):
     prompt = (
         CALL_SPEC
@@ -81,9 +86,7 @@ def intent_router(user_text: str):
     )
 
     try:
-        # Log model input
-        print("\n=== MODEL INPUT (intent_router) ===\n")
-        print(prompt)
+        # Generate response from Gemini AI
         resp = client.models.generate_content(
             model="gemini-2.0-flash-lite",
             contents=prompt,
@@ -111,8 +114,17 @@ def intent_router(user_text: str):
     except Exception as e:
         return {"error": f"Failed to process intent: {str(e)}", "text": user_text}
 
-#this function queries chroma for papers related to the users query
 def query_papers_chroma(query: str, top_k: int = 5):
+    """
+    Query ChromaDB for papers related to the user's query using semantic search.
+    
+    Args:
+        query: User's search query string
+        top_k: Number of results to return (default: 5)
+        
+    Returns:
+        Dictionary containing paper IDs, distances, metadatas, and documents
+    """
     try:
         results = my_chroma.get_query_texts(query, top_k)
         if not results or 'ids' not in results or not results['ids'] or not results['ids'][0]:
@@ -123,8 +135,18 @@ def query_papers_chroma(query: str, top_k: int = 5):
         return {'ids': [[]], 'distances': [[]], 'metadatas': [[]], 'documents': [[]]}
 
 
-#this is the function that calls the query papers function and then summarizes the results for the user
 def call_query_papers(call_args, user_text):
+    """
+    Execute paper search query and summarize results using Gemini AI.
+    Automatically indexes new papers from Semantic Scholar if needed.
+    
+    Args:
+        call_args: Dictionary containing query and top_k parameters
+        user_text: Original user query for context
+        
+    Returns:
+        Summarized text response based on found papers
+    """
     try:
         # Validate call_args
         query = call_args.get('query', user_text)
@@ -156,7 +178,7 @@ def call_query_papers(call_args, user_text):
         # Prepare papers for summarization
         papers_json = json.dumps(papers, default=str)  # default=str handles non-serializable types
         
-    # prompts the model to summarize the papers found
+        # Generate AI summary of the papers found
         prompt = (
             "You are given a set of papers where each item includes title, abstract, and URL.\n"
             "Prioritize the abstract as the primary evidence; use title/URL only to resolve ambiguity.\n"
@@ -182,6 +204,15 @@ def call_query_papers(call_args, user_text):
 
 
 def _parse_command(text: str):
+    """
+    Parse user input to extract command and arguments.
+    
+    Args:
+        text: User input string
+        
+    Returns:
+        Tuple of (command, args) or ("default", text) for non-command inputs
+    """
     if not text or not text.strip():
         return ("default", text)
     if not text.startswith("/"):
@@ -307,6 +338,17 @@ def _cmd_audit(args: list[str]):
 
 
 def _collect_evidence_from_references(primary_ids: list[str], max_refs: int = 100):
+    """
+    Collect evidence papers from primary papers' references using 2-hop traversal.
+    Applies conservative caps to avoid API rate limiting.
+    
+    Args:
+        primary_ids: List of primary paper IDs to start from
+        max_refs: Maximum number of references to collect
+        
+    Returns:
+        List of evidence paper IDs
+    """
     seen = set()
     evidence_ids = []
     # Apply conservative caps to avoid API rate limiting
@@ -342,6 +384,17 @@ def _collect_evidence_from_references(primary_ids: list[str], max_refs: int = 10
 
 
 def _rank_evidence(claim: str, evidence_ids: list[str], k: int = 10):
+    """
+    Rank evidence papers using semantic search against the claim.
+    
+    Args:
+        claim: The claim to fact-check
+        evidence_ids: List of evidence paper IDs
+        k: Number of top results to return
+        
+    Returns:
+        Ranked results from ChromaDB
+    """
     # Use Chroma semantic search against claim
     # We rely on documents already stored; query by text to rank
     res = my_chroma.get_query_texts(claim, n_results=k)
@@ -349,6 +402,16 @@ def _rank_evidence(claim: str, evidence_ids: list[str], k: int = 10):
 
 
 def _format_factcheck_verdict(claim: str, evidence_json: dict):
+    """
+    Generate a fact-check verdict using Gemini AI based on evidence papers.
+    
+    Args:
+        claim: The claim to fact-check
+        evidence_json: Dictionary containing evidence papers
+        
+    Returns:
+        Formatted verdict text
+    """
     prompt = (
         "You are a rigorous research fact-checker.\n"
         "Given the user's claim and a set of candidate papers (with titles/abstracts/urls),\n"
