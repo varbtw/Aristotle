@@ -253,6 +253,12 @@ def _cmd_search(args: list[str]):
 def _cmd_sum(args: list[str]):
     if not args:
         return "Usage: /sum <query or paperId> [k]"
+    
+    # Initialize variables for citations
+    got = None
+    res = None
+    is_single_paper = False
+    
     # If first arg looks like a paperId (no spaces), fetch that, else treat as query
     if len(args) == 1 and " " not in args[0]:
         pid = args[0]
@@ -264,8 +270,9 @@ def _cmd_sum(args: list[str]):
             "You are given a paper where the document contains title, abstract, and URL.\n"
             "Use the abstract as the main source for your summary.\n" +
             papers_json +
-            "\n\nSummarize the key findings of the above paper in 5-7 bullets."
+            "\n\nProvide a concise 3-5 sentence summary of the key findings."
         )
+        is_single_paper = True
     else:
         query = " ".join(a for a in args if not a.isdigit())
         k_vals = [int(a) for a in args if a.isdigit()]
@@ -276,14 +283,49 @@ def _cmd_sum(args: list[str]):
             "You are given a set of papers where each item includes title, abstract, and URL.\n"
             "Prioritize the abstract as the primary evidence; use title/URL only to resolve ambiguity.\n" +
             papers_json +
-            f"\n\nUser query: {query}\nSummarize the key insights across these papers in concise bullets."
+            f"\n\nUser query: {query}\nProvide a concise 2-3 paragraph summary synthesizing the key insights across these papers."
         )
+    
     r = client.models.generate_content(
         model="gemini-2.0-flash-lite",
         contents=prompt,
         config={"system_instruction": SYSTEM_V1, "temperature": 0.2}
     )
-    return (r.text or "").strip() or "No summary generated."
+    summary = (r.text or "").strip() or "No summary generated."
+    
+    # Add citations at the end
+    if is_single_paper and got:
+        metas = (got.get('metadatas') or [])
+        if metas:
+            m = metas[0]
+            title = m.get('title', 'Unknown')
+            year = m.get('year', '')
+            url = m.get('url', '')
+            if title != 'Unknown':
+                citation = f"\n\nCited: {title}"
+                if year:
+                    citation += f" ({year})"
+                if url:
+                    citation += f" — {url}"
+                summary += citation
+    elif res:
+        # Multiple papers - add citations section
+        metas = res.get('metadatas', [[]])[0] if res.get('metadatas') else []
+        if metas:
+            summary += "\n\nCitations:"
+            for i, m in enumerate(metas, 1):
+                title = m.get('title', 'Unknown')
+                year = m.get('year', '')
+                url = m.get('url', '')
+                if title != 'Unknown':
+                    citation = f"\n{i}. {title}"
+                    if year:
+                        citation += f" ({year})"
+                    if url:
+                        citation += f" — {url}"
+                    summary += citation
+    
+    return summary
 
 
 def _cmd_audit(args: list[str]):
@@ -335,6 +377,78 @@ def _cmd_audit(args: list[str]):
         f"Without abstracts: {report.get('without_abstract', 0)}\n"
         f"Sample missing IDs: {', '.join(report.get('missing_ids', []))}"
     )
+
+
+def _cmd_niche(args: list[str]):
+    """
+    /niche <topic> [count]  -> fetch and index niche papers for a specific topic
+    
+    This command fetches a larger number of papers from Semantic Scholar for the given topic
+    and indexes them into ChromaDB. Useful for building a comprehensive database on specific
+    niche areas of research.
+    
+    Args:
+        args: List containing topic and optional count
+    """
+    if not args:
+        return "Usage: /niche <topic> [count]\n\nExample: /niche \"quantum computing\" 200"
+    
+    # Parse arguments
+    # If last arg is a number, treat it as count; otherwise all args are the topic
+    topic_parts = []
+    count = 100  # Default count
+    
+    # Check if last argument is a number
+    if len(args) >= 2 and args[-1].isdigit():
+        count = int(args[-1])
+        topic_parts = args[:-1]
+    else:
+        topic_parts = args
+    
+    topic = " ".join(topic_parts)
+    
+    if not topic:
+        return "Please provide a topic to search for."
+    
+    # Validate count
+    if count < 10:
+        count = 10
+    elif count > 500:
+        count = 500
+        print(f"[WARNING] Count capped at 500 papers to avoid rate limiting")
+    
+    try:
+        print(f"[INFO] Fetching {count} niche papers for topic: '{topic}'")
+        
+        # Import scholar_api to use find_basis_paper directly with custom count
+        import scholar_api as sch
+        
+        # Fetch papers from Semantic Scholar
+        papers = sch.find_basis_paper(topic, result_limit=str(count))
+        
+        if not papers:
+            return f"No papers found for topic: '{topic}'"
+        
+        # Get actual count fetched
+        actual_count = len(papers)
+        
+        # Index papers into ChromaDB
+        print(f"[INFO] Indexing {actual_count} papers into ChromaDB...")
+        my_chroma.upsert_papers(papers, topic=topic)
+        
+        # Count how many have abstracts
+        papers_with_abstracts = sum(1 for p in papers if (p.get('abstract') or '').strip())
+        
+        return (
+            f"Niche papers indexed successfully!\n\n"
+            f"Topic: {topic}\n"
+            f"Total papers fetched: {actual_count}\n"
+            f"Papers with abstracts: {papers_with_abstracts} ({papers_with_abstracts/actual_count*100:.1f}%)\n"
+            f"Papers indexed to ChromaDB"
+        )
+        
+    except Exception as e:
+        return f"Error fetching niche papers: {str(e)}"
 
 
 def _collect_evidence_from_references(primary_ids: list[str], max_refs: int = 100):
@@ -585,6 +699,43 @@ def agent(user_text: str):
         str: Response text from the agent
     """
     try:
+        # First check if it's a direct command that should bypass intent routing
+        cmd, args = _parse_command(user_text)
+        
+        if cmd == "/search":
+            return _cmd_search(args)
+        if cmd == "/sum":
+            return _cmd_sum(args)
+        if cmd == "/fact":
+            return _cmd_fact(args)
+        if cmd == "/factpaper":
+            return _cmd_factpaper(args)
+        if cmd == "/audit":
+            return _cmd_audit(args)
+        if cmd == "/niche":
+            return _cmd_niche(args)
+        if cmd == "/rehydrate":
+            # Handle rehydrate command
+            if not args:
+                summary = my_chroma.rehydrate_missing_abstracts(max_ids=200)
+                return f"Backfill: requested={summary['requested']} fetched={summary['fetched']} updated={summary['updated']}"
+            a0 = args[0]
+            if a0.isdigit():
+                n = int(a0)
+                summary = my_chroma.rehydrate_missing_abstracts(max_ids=n)
+                return f"Backfill: requested={summary['requested']} fetched={summary['fetched']} updated={summary['updated']}"
+            if a0.startswith("query="):
+                q = a0.split("=", 1)[1]
+                res = my_chroma.get_query_texts(q, n_results=50)
+                ids = [pid for pid in (res.get('ids') or [[]])[0] if pid]
+                summary = my_chroma.rehydrate_papers_by_ids(ids)
+                return f"Backfill: requested={summary['requested']} fetched={summary['fetched']} updated={summary['updated']}"
+            # treat as paperId list
+            ids = [a.strip() for a in args if a.strip()]
+            summary = my_chroma.rehydrate_papers_by_ids(ids)
+            return f"Backfill: requested={summary['requested']} fetched={summary['fetched']} updated={summary['updated']}"
+        
+        # For regular queries (not commands), use intent routing
         intent = intent_router(user_text)
         
         # Handle error responses

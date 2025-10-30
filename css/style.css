@@ -1,0 +1,350 @@
+/* Aristotle - Clean UI Stylesheet */
+
+/* CSS Variables for consistent theming */
+:root {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #1a1a1a;
+    --bg-tertiary: #2a2a2a;
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+    --text-tertiary: #6a6a6a;
+    --accent: #4a9eff;
+    --accent-hover: #6ab8ff;
+    --border-color: #333333;
+    --border-hover: #555555;
+    --transition: all 0.2s ease;
+}
+
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 
+                 'Ubuntu', 'Cantarell', sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Container Layout */
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    margin-bottom: 3rem;
+    padding-top: 2rem;
+}
+
+.logo {
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.tagline {
+    font-size: 1rem;
+    color: var(--text-tertiary);
+    font-weight: 400;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+}
+
+/* Search Container */
+.search-container {
+    width: 100%;
+}
+
+.search-box-wrapper {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.5rem;
+    transition: var(--transition);
+}
+
+.search-box-wrapper:focus-within {
+    border-color: var(--border-hover);
+    background: var(--bg-tertiary);
+}
+
+.search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 1rem;
+    padding: 0.75rem 1rem;
+    font-family: inherit;
+}
+
+.search-input::placeholder {
+    color: var(--text-tertiary);
+}
+
+.submit-btn {
+    background: var(--accent);
+    border: none;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: inherit;
+}
+
+.submit-btn:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+}
+
+.submit-btn:active {
+    transform: translateY(0);
+}
+
+/* Results Container */
+.results-container {
+    margin-top: 2rem;
+    min-height: 200px;
+    padding: 1.5rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    display: none;
+}
+
+.results-container.show {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.result-item {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.result-item:last-child {
+    border-bottom: none;
+}
+
+.result-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.result-text {
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+/* Commands Section */
+.commands-section {
+    width: 100%;
+}
+
+.commands-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.commands-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.command-item {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.25rem;
+    transition: var(--transition);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.command-item:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-tertiary);
+    transform: translateY(-2px);
+}
+
+.command-item:active {
+    transform: translateY(0);
+}
+
+.command-item code {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-size: 0.9rem;
+    color: var(--accent);
+    display: inline-block;
+    width: fit-content;
+}
+
+.command-desc {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* Footer */
+.footer {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.footer-links {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.footer-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: var(--transition);
+}
+
+.footer-links a:hover {
+    color: var(--text-primary);
+}
+
+.separator {
+    color: var(--text-tertiary);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        padding: 1.5rem 1rem;
+    }
+
+    .logo {
+        font-size: 2.5rem;
+    }
+
+    .tagline {
+        font-size: 0.9rem;
+    }
+
+    .commands-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .search-box-wrapper {
+        flex-direction: column;
+    }
+
+    .search-input {
+        width: 100%;
+    }
+
+    .submit-btn {
+        width: 100%;
+    }
+
+    .main-content {
+        gap: 2rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .header {
+        margin-bottom: 2rem;
+        padding-top: 1rem;
+    }
+
+    .logo {
+        font-size: 2rem;
+    }
+
+    .commands-title {
+        font-size: 1.1rem;
+    }
+
+    .command-item {
+        padding: 1rem;
+    }
+}
+
+/* iOS Specific Fixes */
+@supports (-webkit-touch-callout: none) {
+    .search-input {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+}
+
+/* Loading Animation */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--border-color);
+    border-radius: 50%;
+    border-top-color: var(--accent);
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
